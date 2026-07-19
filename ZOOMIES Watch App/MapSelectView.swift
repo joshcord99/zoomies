@@ -5,10 +5,6 @@ struct MapSelectView: View {
     @Binding var selectedMap: String
     @Binding var selectedCharacter: String
 
-    private var character: CharacterType {
-        CharacterType(rawValue: selectedCharacter) ?? .cappi
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -28,9 +24,7 @@ struct MapSelectView: View {
             List {
                 Section {
                     ForEach(MapType.allCases, id: \.self) { map in
-                        let isCompatible = map.supports(character)
                         Button {
-                            guard isCompatible else { return }
                             selectedMap = map.rawValue
                             screen = .home
                         } label: {
@@ -40,16 +34,12 @@ struct MapSelectView: View {
                                     .background(map.sky.gradient, in: Circle())
                                 VStack(alignment: .leading) {
                                     Text(map.name).bold()
-                                    Text("Playable: \(map.compatibilityLabel)")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Image(systemName: isCompatible ? (selectedMap == map.rawValue ? "checkmark.circle.fill" : "chevron.right") : "lock.fill")
+                                Image(systemName: selectedMap == map.rawValue ? "checkmark.circle.fill" : "chevron.right")
                                     .foregroundStyle(selectedMap == map.rawValue ? .green : .secondary)
                             }
                         }
-                        .disabled(!isCompatible)
                     }
                 }
             }

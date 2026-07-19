@@ -72,12 +72,26 @@ struct GameView: View {
         let layout = GameLayout(size: size)
         return ZStack {
             Rectangle().fill(map.ground.gradient).frame(height: layout.groundHeight)
-            HStack(spacing: 16) {
-                ForEach(0..<14, id: \.self) { _ in
-                    Capsule().fill(.white.opacity(0.3)).frame(width: 12, height: 3)
+            if map == .meadow {
+                HStack(spacing: 18) {
+                    ForEach(0..<14, id: \.self) { index in
+                        VStack(spacing: -1) {
+                            Capsule().fill(.white.opacity(0.28)).frame(width: 3, height: 9)
+                                .rotationEffect(.degrees(index.isMultiple(of: 2) ? -14 : 12))
+                            Capsule().fill(.white.opacity(0.18)).frame(width: 2, height: 6)
+                                .rotationEffect(.degrees(index.isMultiple(of: 2) ? 16 : -12))
+                        }
+                    }
                 }
+                .offset(x: game.worldOffset.truncatingRemainder(dividingBy: 30), y: -3)
+            } else if map != .jungle {
+                HStack(spacing: 16) {
+                    ForEach(0..<14, id: \.self) { _ in
+                        Capsule().fill(.white.opacity(0.3)).frame(width: 12, height: 3)
+                    }
+                }
+                .offset(x: game.worldOffset.truncatingRemainder(dividingBy: 28))
             }
-            .offset(x: game.worldOffset.truncatingRemainder(dividingBy: 28))
         }
         .position(x: size.width / 2, y: size.height - layout.groundHeight / 2)
     }
@@ -86,9 +100,7 @@ struct GameView: View {
         let layout = GameLayout(size: size)
         return ZStack {
             ForEach(game.obstacles) { obstacle in
-                Image(systemName: obstacle.symbol)
-                    .font(.system(size: obstacle.height))
-                    .foregroundStyle(.brown)
+                ObstacleView(obstacle: obstacle)
                     .position(x: obstacle.x, y: layout.groundTop - obstacle.height / 2)
             }
             ForEach(game.coins) { coin in
@@ -112,7 +124,12 @@ struct GameView: View {
 
     private func runner(size: CGSize) -> some View {
         let layout = GameLayout(size: size)
-        return CharacterBadge(character: character, size: layout.runnerSize, running: game.phase == .running)
+        return CharacterBadge(
+            character: character,
+            size: layout.runnerSize,
+            running: game.phase == .running,
+            jumping: !game.player.isGrounded
+        )
             .opacity(game.isFlashing ? 0.25 : 1)
             .rotationEffect(.degrees(game.hitShake))
             .position(x: layout.runnerCenterX, y: layout.runnerCenterY - game.player.y)
@@ -299,6 +316,155 @@ struct GameView: View {
     }
 }
 
+private struct ObstacleView: View {
+    let obstacle: Obstacle
+
+    var body: some View {
+        Group {
+            switch obstacle.kind {
+            case "rock", "coconut":
+                RockObstacle(width: obstacle.width, height: obstacle.height)
+            case "log", "branch", "driftwood":
+                LogObstacle(width: obstacle.width, height: obstacle.height)
+            case "bush", "vine":
+                BushObstacle(width: obstacle.width, height: obstacle.height)
+            case "ice", "snowball":
+                IceObstacle(width: obstacle.width, height: obstacle.height)
+            default:
+                Image(systemName: obstacle.symbol)
+                    .font(.system(size: obstacle.height))
+                    .foregroundStyle(.brown)
+            }
+        }
+        .frame(width: obstacle.width + 8, height: obstacle.height, alignment: .bottom)
+    }
+}
+
+private struct RockObstacle: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        ZStack {
+            Path { path in
+                path.move(to: CGPoint(x: width * 0.08, y: height))
+                path.addQuadCurve(to: CGPoint(x: width * 0.22, y: height * 0.34), control: CGPoint(x: width * 0.02, y: height * 0.55))
+                path.addQuadCurve(to: CGPoint(x: width * 0.52, y: height * 0.14), control: CGPoint(x: width * 0.35, y: height * 0.02))
+                path.addQuadCurve(to: CGPoint(x: width * 0.9, y: height * 0.4), control: CGPoint(x: width * 0.82, y: height * 0.08))
+                path.addQuadCurve(to: CGPoint(x: width * 0.86, y: height), control: CGPoint(x: width, y: height * 0.78))
+                path.closeSubpath()
+            }
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.56, green: 0.48, blue: 0.42),
+                        Color(red: 0.28, green: 0.24, blue: 0.22)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+
+            Path { path in
+                path.move(to: CGPoint(x: width * 0.25, y: height * 0.42))
+                path.addQuadCurve(to: CGPoint(x: width * 0.52, y: height * 0.28), control: CGPoint(x: width * 0.38, y: height * 0.3))
+                path.addQuadCurve(to: CGPoint(x: width * 0.72, y: height * 0.42), control: CGPoint(x: width * 0.62, y: height * 0.3))
+            }
+            .stroke(.white.opacity(0.22), lineWidth: 2)
+        }
+        .frame(width: width, height: height)
+        .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
+    }
+}
+
+private struct LogObstacle: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        ZStack {
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.58, green: 0.32, blue: 0.13),
+                            Color(red: 0.3, green: 0.16, blue: 0.07)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: width + 9, height: max(height * 0.5, 10))
+                .offset(y: height * 0.25)
+
+            Circle()
+                .fill(Color(red: 0.72, green: 0.48, blue: 0.26))
+                .frame(width: max(height * 0.46, 8), height: max(height * 0.46, 8))
+                .overlay(Circle().stroke(Color(red: 0.38, green: 0.2, blue: 0.1), lineWidth: 1.5))
+                .offset(x: (width + 9) * 0.32, y: height * 0.25)
+        }
+        .frame(width: width + 9, height: height, alignment: .bottom)
+        .rotationEffect(.degrees(-8))
+        .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
+    }
+}
+
+private struct BushObstacle: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.25, green: 0.64, blue: 0.25),
+                                Color(red: 0.08, green: 0.34, blue: 0.12)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: width * 0.62, height: height * 0.68)
+                    .offset(x: CGFloat(index - 1) * width * 0.23, y: index == 1 ? -height * 0.12 : 0)
+            }
+        }
+        .frame(width: width + 8, height: height)
+        .shadow(color: .black.opacity(0.22), radius: 1, y: 1)
+    }
+}
+
+private struct IceObstacle: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.78, green: 0.96, blue: 1.0),
+                            Color(red: 0.26, green: 0.7, blue: 0.92)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: width, height: height)
+                .rotationEffect(.degrees(-10))
+
+            Capsule()
+                .fill(.white.opacity(0.55))
+                .frame(width: width * 0.46, height: 2)
+                .offset(x: -width * 0.08, y: -height * 0.16)
+        }
+        .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
+    }
+}
+
 struct GameLayout {
     let size: CGSize
 
@@ -323,19 +489,44 @@ struct CharacterBadge: View {
     let character: CharacterType
     let size: CGFloat
     var running = false
+    var jumping = false
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.12)) { timeline in
             let step = running && Int(timeline.date.timeIntervalSinceReferenceDate * 8).isMultiple(of: 2)
-            ZStack {
-                Circle().fill(character.color.gradient)
-                Circle().fill(.white.opacity(0.25)).frame(width: size * 0.5, height: size * 0.4).offset(y: size * 0.16)
-                Image(systemName: character.symbol).font(.system(size: size * 0.36, weight: .bold)).foregroundStyle(.white)
-                Capsule().fill(character.color).frame(width: size * 0.2, height: size * 0.35).offset(x: -size * 0.16, y: size * (step ? 0.47 : 0.4))
-                Capsule().fill(character.color).frame(width: size * 0.2, height: size * 0.35).offset(x: size * 0.16, y: size * (step ? 0.4 : 0.47))
+            Group {
+                if let assetName {
+                    Image(assetName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: size, height: size)
+                } else {
+                    ZStack {
+                        Circle().fill(character.color.gradient)
+                        Circle().fill(.white.opacity(0.25)).frame(width: size * 0.5, height: size * 0.4).offset(y: size * 0.16)
+                        Image(systemName: character.symbol).font(.system(size: size * 0.36, weight: .bold)).foregroundStyle(.white)
+                        Capsule().fill(character.color).frame(width: size * 0.2, height: size * 0.35).offset(x: -size * 0.16, y: size * (step ? 0.47 : 0.4))
+                        Capsule().fill(character.color).frame(width: size * 0.2, height: size * 0.35).offset(x: size * 0.16, y: size * (step ? 0.4 : 0.47))
+                    }
+                    .frame(width: size, height: size)
+                }
             }
-            .frame(width: size, height: size)
             .offset(y: running && step ? -1 : 1)
         }
+    }
+
+    private var assetName: String? {
+        let prefix: String
+        switch character {
+        case .cappi: prefix = "Cappi"
+        case .pebble: prefix = "Pebble"
+        case .biscuit: prefix = "Biscuit"
+        case .boba: prefix = "Boba"
+        case .momo: prefix = "Momo"
+        }
+
+        if jumping { return "\(prefix)Jump" }
+        if running { return "\(prefix)Run" }
+        return "\(prefix)Idle"
     }
 }

@@ -13,12 +13,12 @@ struct Player {
     mutating func jump(as character: CharacterType) {
         let maxJumps = character == .biscuit ? 2 : 1
         guard jumpCount < maxJumps else { return }
-        velocity = character == .pebble ? 205 : 220
+        velocity = character == .pebble ? 240 : 254
         jumpCount += 1
     }
 
     mutating func update(delta: TimeInterval) {
-        velocity -= 525 * CGFloat(delta)
+        velocity -= 420 * CGFloat(delta)
         y += velocity * CGFloat(delta)
         if y <= 0 {
             y = 0

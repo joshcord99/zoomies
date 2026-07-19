@@ -34,6 +34,9 @@ final class GameEngine: ObservableObject {
     private var frenzyUntil = 0.0
     private var recentMouse = 0.0
     private var recentYarn = 0.0
+    private let maxVisibleObstacles = 2
+    private let minObstacleSpacing: CGFloat = 92
+    private let minCoinObstacleSpacing: CGFloat = 125
 
     func configure(character: CharacterType, map: MapType, yolo: Bool, sound: Bool, haptics: Bool) {
         self.character = character
@@ -70,7 +73,7 @@ final class GameEngine: ObservableObject {
         phase = .countdown(3)
         phaseStarted = Date.timeIntervalSinceReferenceDate
         lastTick = phaseStarted
-        nextObstacle = yolo ? 0.8 : 1.25
+        nextObstacle = yolo ? 1.05 : 1.45
         nextCoin = 0.4
         nextPower = 4.5
     }
@@ -147,6 +150,17 @@ final class GameEngine: ObservableObject {
     }
 
     private func spawnObstacle(speed: Double) {
+        guard visibleObstacleCount < maxVisibleObstacles else {
+            nextObstacle = 0.35
+            return
+        }
+
+        let spawnX = sceneSize.width + 25
+        guard hasRoomForObstacle(at: spawnX) else {
+            nextObstacle = 0.28
+            return
+        }
+
         let kinds: [String]
         switch map {
         case .meadow: kinds = ["rock", "log", "bush"]
@@ -157,17 +171,42 @@ final class GameEngine: ObservableObject {
         }
         let kind = kinds.randomElement() ?? "rock"
         let low = kind == "puddle"
-        obstacles.append(Obstacle(x: sceneSize.width + 25, kind: kind, width: low ? 27 : 22, height: low ? 10 : 25))
+        obstacles.append(Obstacle(x: spawnX, kind: kind, width: low ? 27 : 22, height: low ? 10 : 25))
         let tier = min(distance / 1000, 0.6)
-        nextObstacle = Double.random(in: (yolo ? 0.65 : 0.9)...(1.55 - tier))
+        nextObstacle = Double.random(in: (yolo ? 0.95 : 1.2)...(2.05 - tier * 0.5))
+    }
+
+    private var visibleObstacleCount: Int {
+        obstacles.filter { obstacle in
+            obstacle.x > -obstacle.width && obstacle.x < sceneSize.width + 35
+        }.count
+    }
+
+    private func hasRoomForObstacle(at spawnX: CGFloat) -> Bool {
+        obstacles.allSatisfy { obstacle in
+            abs(spawnX - obstacle.x) >= minObstacleSpacing
+        }
     }
 
     private func spawnCoins(now: TimeInterval) {
         let count = now < frenzyUntil ? 5 : (yolo ? 4 : 3)
+        let startX = sceneSize.width + 20
+        let coinXs = (0..<count).map { startX + CGFloat($0 * 17) }
+        guard coinXs.allSatisfy(isClearForCoin) else {
+            nextCoin = 0.3
+            return
+        }
+
         for index in 0..<count {
-            coins.append(Coin(x: sceneSize.width + 20 + CGFloat(index * 17), y: CGFloat.random(in: 20...70)))
+            coins.append(Coin(x: coinXs[index], y: CGFloat.random(in: 48...82)))
         }
         nextCoin = now < frenzyUntil ? 0.45 : Double.random(in: 0.9...1.5)
+    }
+
+    private func isClearForCoin(x: CGFloat) -> Bool {
+        obstacles.allSatisfy { obstacle in
+            abs(x - obstacle.x) >= minCoinObstacleSpacing
+        }
     }
 
     private func spawnPowerUp() {
@@ -186,8 +225,8 @@ final class GameEngine: ObservableObject {
         let playerFrame = layout.playerFrame(jumpHeight: player.y)
         for obstacle in obstacles where CollisionManager.intersects(
             playerFrame: playerFrame,
-            itemCenter: CGPoint(x: obstacle.x, y: layout.groundTop - obstacle.height / 2),
-            itemSize: CGSize(width: obstacle.width, height: obstacle.height)
+            itemCenter: CGPoint(x: obstacle.x, y: layout.groundTop - obstacle.collisionSize.height / 2),
+            itemSize: obstacle.collisionSize
         ) {
             guard now > player.invincibleUntil else { continue }
             if now < shieldUntil {

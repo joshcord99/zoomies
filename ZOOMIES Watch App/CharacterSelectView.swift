@@ -29,10 +29,6 @@ struct CharacterSelectView: View {
                         Button {
                             guard isUnlocked else { return }
                             selectedCharacter = character.rawValue
-                            let currentMap = MapType(rawValue: selectedMap) ?? .meadow
-                            if !currentMap.supports(character) {
-                                selectedMap = character.homeMap.rawValue
-                            }
                             screen = .home
                         } label: {
                             HStack(spacing: 8) {
