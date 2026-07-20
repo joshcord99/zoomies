@@ -84,7 +84,7 @@ struct GameView: View {
                     }
                 }
                 .offset(x: game.worldOffset.truncatingRemainder(dividingBy: 30), y: -3)
-            } else if map != .jungle {
+            } else if map != .frost && map != .jungle {
                 HStack(spacing: 16) {
                     ForEach(0..<14, id: \.self) { _ in
                         Capsule().fill(.white.opacity(0.3)).frame(width: 12, height: 3)
